@@ -26,7 +26,7 @@
                 <span> of </span>
                 </field>
                 <field name="product_uom" position="after">
-                    <div>
+                    <div groups="product.group_stock_packaging">
                          using package <field name="packaging_id" domain="[('product_tmpl_id', '=', product_tmpl_id)]" groups="product.group_stock_packaging"/>
                     </div>
                 </field>

@@ -10,7 +10,11 @@ class PurchaseOrderLine(models.Model):
 
     @api.model
     def _default_product_purchase_uom_id(self):
-        return self.env.ref('product.product_uom_unit')
+        # To more gracefully handle installing on system with existing POs.
+        if self.product_uom.id:
+            return self.product_uom
+        else:
+            return self.env.ref('product.product_uom_unit')
 
     product_tmpl_id = fields.Many2one(
         related='product_id.product_tmpl_id',
@@ -29,13 +33,26 @@ class PurchaseOrderLine(models.Model):
         'product.uom',
         'Purchase Unit of Measure',
         required=True,
-        default=_default_product_purchase_uom_id
+        compute='_get_product_purchase_uom',
+        inverse='_set_product_purchase_uom',
+        store=True
     )
     product_qty = fields.Float(
         compute="_compute_product_qty",
         string='Quantity',
         inverse='_inverse_product_qty'
     )
+
+    @api.one
+    def _get_product_purchase_uom(self):
+        # To more gracefully handle installing on system with existing POs.
+        if self.product_uom.id and self.product_purchase_uom_id.id is False:
+            self.product_purchase_uom_id = self.product_uom.id
+        elif self.product_purchase_uom_id.id is False:
+            self.product_purchase_uom_id = self.env.ref('product.product_uom_unit').id
+
+    def _set_product_purchase_uom(self):
+        return
 
     @api.multi
     def _get_product_seller(self):
@@ -64,9 +81,17 @@ class PurchaseOrderLine(models.Model):
              ('uom_type', '=', 'reference')])
         uom_by_category = {to_uom.category_id: to_uom for to_uom in to_uoms}
         for line in self:
-            line.product_qty = line.product_purchase_uom_id._compute_quantity(
-                line.product_purchase_qty,
-                uom_by_category.get(line.product_purchase_uom_id.category_id))
+            # Convert the qty to the UOM specified on the line.
+            if line.product_purchase_uom_id.category_id.id != line.product_uom.category_id.id:
+                line.product_qty = line.product_purchase_uom_id._compute_quantity(
+                    line.product_purchase_qty,
+                    uom_by_category.get(line.product_purchase_uom_id.category_id)
+                )
+            else:
+                line.product_qty = line.product_purchase_uom_id._compute_quantity(
+                    line.product_purchase_qty,
+                    line.product_uom
+                )
 
     @api.multi
     def _inverse_product_qty(self):
@@ -79,19 +104,24 @@ class PurchaseOrderLine(models.Model):
               'in',
               uom_categories.ids),
              ('uom_type', '=', 'reference')])
-        uom_by_category = {
-            from_uom.category_id: from_uom for from_uom in from_uoms}
+        uom_by_category = {from_uom.category_id: from_uom for from_uom in from_uoms}
         for line in self:
             if line.product_id:
                 supplier = line._get_product_seller()
                 if supplier:
                     product_purchase_uom = supplier.min_qty_uom_id
-                    from_uom = uom_by_category.get(
-                        line.product_purchase_uom_id.category_id)
-                    line.product_purchase_qty = from_uom._compute_quantity(
-                        line.product_qty,
-                        product_purchase_uom)
+                    from_uom = uom_by_category.get(product_purchase_uom.category_id)
+                    if line.product_uom.category_id.id != product_purchase_uom.category_id.id:
+                        line.product_purchase_qty = from_uom._compute_quantity(
+                            line.product_qty,
+                            product_purchase_uom)
+                    else:
+                        line.product_purchase_qty = line.product_uom._compute_quantity(
+                            line.product_qty,
+                            product_purchase_uom)
                     line.product_purchase_uom_id = product_purchase_uom.id
+                else:
+                    line.product_purchase_uom_id = line.product_uom.id
             else:
                 line.product_purchase_qty = line.product_qty
 
@@ -141,9 +171,14 @@ class PurchaseOrderLine(models.Model):
                  supplier.min_qty_uom_id.category_id.id),
                 ('uom_type', '=', 'reference')], limit=1)
             to_uom = to_uom and to_uom[0]
-            self.product_qty = supplier.min_qty_uom_id._compute_quantity(
-                supplier.min_qty, to_uom
-            )
+            if self.product_purchase_uom_id.category_id.id != self.product_uom.category_id.id:
+                self.product_qty = supplier.min_qty_uom_id._compute_quantity(
+                    supplier.min_qty, to_uom
+                )
+            else:
+                self.product_qty = supplier.min_qty_uom_id._compute_quantity(
+                    supplier.min_qty, self.product_uom
+                )
         self.packaging_id = supplier.packaging_id
         if domain:
             if res.get('domain'):
@@ -182,9 +217,19 @@ class PurchaseOrderLine(models.Model):
             to_uom = uom_obj.search(
                 [('category_id', '=', product_purchase_uom.category_id.id),
                  ('uom_type', '=', 'reference')], limit=1)
-            vals['product_qty'] = to_uom._compute_quantity(
-                vals['product_purchase_qty'],
-                to_uom)
+            # if to_uom.category_id.id != product_purchase_uom.category_id.id:
+            #     line.product_qty = line.product_purchase_uom_id._compute_quantity(
+            #         line.product_purchase_qty,
+            #         uom_by_category.get(line.product_purchase_uom_id.category_id)
+            #     )
+            # else:
+            #     line.product_qty = line.product_purchase_uom_id._compute_quantity(
+            #         line.product_purchase_qty,
+            #         line.product_uom
+            #     )
+            # vals['product_qty'] = to_uom._compute_quantity(
+            #     vals['product_purchase_qty'],
+            #     to_uom)
         return super(PurchaseOrderLine, self).create(self.update_vals(vals))
 
     @api.multi

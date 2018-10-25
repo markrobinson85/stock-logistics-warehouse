@@ -24,8 +24,21 @@ class ProductSupplierinfo(models.Model):
         'product.uom',
         'Minimal Unit of Measure Quantity',
         required=True,
-        default=_default_min_qty_uom_id
+        compute='_get_product_purchase_uom',
+        inverse='_set_product_purchase_uom',
+        store=True
     )
+
+    @api.one
+    def _get_product_purchase_uom(self):
+        # To more gracefully handle installing on system with existing suppliers, base
+        if self.product_uom.id and self.min_qty_uom_id.id is False:
+            self.min_qty_uom_id = self.product_uom.id
+        elif self.min_qty_uom_id.id is False:
+            self.min_qty_uom_id = self.env.ref('product.product_uom_unit').id
+
+    def _set_product_purchase_uom(self):
+        return
 
     @api.multi
     @api.depends('product_tmpl_id', 'packaging_id')
@@ -37,3 +50,4 @@ class ProductSupplierinfo(models.Model):
             rec.product_uom = rec.packaging_id.uom_id or \
                 rec.product_id.uom_po_id or \
                 rec.product_tmpl_id.uom_po_id
+
