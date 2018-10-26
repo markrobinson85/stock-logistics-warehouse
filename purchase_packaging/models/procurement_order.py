@@ -29,6 +29,13 @@ class ProcurementOrder(models.Model):
                 qty = self.product_uom._compute_quantity(
                     self.product_qty, new_uom_id)
                 res['product_qty'] = max(qty, seller.min_qty)
+        elif seller.min_qty_uom_id:
+            # Handle without packaging enabled.
+            if seller.min_qty_uom_id.id != res['product_uom']:
+                min_qty = seller.min_qty_uom_id._compute_quantity(seller.min_qty, self.product_uom)
+                res['product_qty'] = max(self.product_qty, min_qty)
+                res['product_purchase_uom_id'] = seller.min_qty_uom_id.id
+
         return res
 
 

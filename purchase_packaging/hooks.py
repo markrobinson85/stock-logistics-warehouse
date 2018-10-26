@@ -4,5 +4,11 @@
 
 
 def post_init_hook(cr, registry):
-    cr.execute("""update purchase_order_line
-                  set product_purchase_qty = product_qty""")
+    cr.execute("""UPDATE purchase_order_line
+                  SET 
+                      product_purchase_qty = product_qty,
+                      product_purchase_uom_id = product_uom,
+                      purchase_price_unit = price_unit
+                  """)
+    cr.execute("""UPDATE product_supplierinfo
+                      SET purchase_price = price""")

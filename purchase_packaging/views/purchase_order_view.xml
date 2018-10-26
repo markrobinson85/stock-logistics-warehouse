@@ -18,7 +18,8 @@
                 </xpath>
                 <xpath expr="//page//field[@name='order_line']/tree/field[@name='product_qty']" position="before">
                     <field name="product_purchase_qty"/>
-                    <field name="product_purchase_uom_id" groups="product.group_uom"/>
+                    <field name="product_purchase_uom_id" groups="product.group_uom" />
+                    <field name="purchase_price_unit" groups="product.group_uom" />
                 </xpath>
                 <xpath expr="//page//field[@name='order_line']/tree/field[@name='product_uom']" position="attributes">
                     <attribute name="attrs">{'readonly' : [('packaging_id', '!=', False)]}</attribute>
@@ -33,7 +34,8 @@
                 </xpath>
                 <xpath expr="//page//field[@name='order_line']/form//field[@name='product_qty']" position="before">
                     <field name="product_purchase_qty"/>
-                    <field name="product_purchase_uom_id" groups="product.group_uom"/>
+                    <field name="product_purchase_uom_id" groups="product.group_uom" />
+                    <field name="purchase_price_unit" />
                 </xpath>
                 <xpath expr="//page//field[@name='order_line']/form//field[@name='product_uom']" position="attributes">
                     <attribute name="attrs">{'readonly' : [('packaging_id', '!=', False)]}</attribute>

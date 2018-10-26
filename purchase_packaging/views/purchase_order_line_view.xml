@@ -16,6 +16,7 @@
                     <field name="packaging_id" domain="[('product_tmpl_id','=',product_tmpl_id)]" groups="product.group_stock_packaging"/>
                     <field name="product_purchase_qty"/>
                     <field name="product_purchase_uom_id" groups="product.group_uom"/>
+                    <field name="purchase_price_unit" />
                 </label>
                 <field name="product_uom" position="attributes">
                     <attribute name="attrs">{'readonly' : [('packaging_id', '!=', False)]}</attribute>

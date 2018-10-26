@@ -8,14 +8,6 @@ import odoo.addons.decimal_precision as dp
 class PurchaseOrderLine(models.Model):
     _inherit = "purchase.order.line"
 
-    @api.model
-    def _default_product_purchase_uom_id(self):
-        # To more gracefully handle installing on system with existing POs.
-        if self.product_uom.id:
-            return self.product_uom
-        else:
-            return self.env.ref('product.product_uom_unit')
-
     product_tmpl_id = fields.Many2one(
         related='product_id.product_tmpl_id',
         comodel_name='product.template',
@@ -26,7 +18,7 @@ class PurchaseOrderLine(models.Model):
         'Packaging'
     )
     product_purchase_qty = fields.Float(
-        'Purchase quantity',
+        'Purchase Quantity',
         digits=dp.get_precision('Product Unit of Measure'),
         required=True, default=lambda *a: 1.0
     )
@@ -34,26 +26,21 @@ class PurchaseOrderLine(models.Model):
         'product.uom',
         'Purchase Unit of Measure',
         required=True,
-        compute='_get_product_purchase_uom',
-        inverse='_set_product_purchase_uom',
-        store=True
     )
+
+    purchase_price_unit = fields.Float(
+        string='Purchase Unit Price',
+        store=True,
+        readonly=True,
+        compute="_compute_product_price",
+        digits=dp.get_precision('Product Price'))
+
     product_qty = fields.Float(
         compute="_compute_product_qty",
         string='Quantity',
-        inverse='_inverse_product_qty'
+        inverse='_inverse_product_qty',
+        store=True
     )
-
-    @api.one
-    def _get_product_purchase_uom(self):
-        # To more gracefully handle installing on system with existing POs.
-        if self.product_uom.id and self.product_purchase_uom_id.id is False:
-            self.product_purchase_uom_id = self.product_uom.id
-        elif self.product_purchase_uom_id.id is False:
-            self.product_purchase_uom_id = self.env.ref('product.product_uom_unit').id
-
-    def _set_product_purchase_uom(self):
-        return
 
     @api.multi
     def _get_product_seller(self):
@@ -64,6 +51,20 @@ class PurchaseOrderLine(models.Model):
             date=self.order_id.date_order and fields.Date.to_string(
                 fields.Date.from_string(self.order_id.date_order)) or None,
             uom_id=self.product_uom)
+
+    @api.multi
+    @api.depends('price_unit', 'product_purchase_uom_id', 'product_uom')
+    def _compute_product_price(self):
+        for line in self:
+            if line.product_uom.id != line.product_purchase_uom_id.id:
+                if line.product_uom.category_id.id == line.product_purchase_uom_id.category_id.id:
+                    qty = line.product_purchase_uom_id._compute_quantity(
+                        1,
+                        line.product_uom
+                    )
+                    line.purchase_price_unit = qty * line.price_unit
+            else:
+                line.purchase_price_unit = line.price_unit
 
     @api.multi
     @api.depends('product_purchase_uom_id',
@@ -215,9 +216,9 @@ class PurchaseOrderLine(models.Model):
             uom_obj = self.env['product.uom']
             product_purchase_uom = uom_obj.browse(
                 vals['product_purchase_uom_id'])
-            to_uom = uom_obj.search(
-                [('category_id', '=', product_purchase_uom.category_id.id),
-                 ('uom_type', '=', 'reference')], limit=1)
+            # to_uom = uom_obj.search(
+            #     [('category_id', '=', product_purchase_uom.category_id.id),
+            #      ('uom_type', '=', 'reference')], limit=1)
             # if to_uom.category_id.id != product_purchase_uom.category_id.id:
             #     line.product_qty = line.product_purchase_uom_id._compute_quantity(
             #         line.product_purchase_qty,

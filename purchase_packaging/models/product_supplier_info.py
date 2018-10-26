@@ -2,14 +2,11 @@
 # Copyright 2015-2017 ACSONE SA/NV (<http://acsone.eu>)
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl).
 from odoo import api, fields, models
+from odoo.addons import decimal_precision as dp
 
 
 class ProductSupplierinfo(models.Model):
     _inherit = "product.supplierinfo"
-
-    @api.model
-    def _default_min_qty_uom_id(self):
-        return self.env.ref('product.product_uom_unit')
 
     packaging_id = fields.Many2one(
         'product.packaging',
@@ -20,24 +17,31 @@ class ProductSupplierinfo(models.Model):
         string="Supplier Unit of Measure",
         related=False
     )
+
     min_qty_uom_id = fields.Many2one(
         'product.uom',
         'Minimal Unit of Measure Quantity',
         required=True,
-        compute='_get_product_purchase_uom',
-        inverse='_set_product_purchase_uom',
-        store=True
     )
 
-    @api.one
-    def _get_product_purchase_uom(self):
-        # To more gracefully handle installing on system with existing suppliers, base
-        if self.product_uom.id and self.min_qty_uom_id.id is False:
-            self.min_qty_uom_id = self.product_uom.id
-        elif self.min_qty_uom_id.id is False:
-            self.min_qty_uom_id = self.env.ref('product.product_uom_unit').id
+    purchase_price = fields.Float(string='Package Price', required=True, store=True,
+                                  compute="_get_purchase_price", digits=dp.get_precision('Product Price'),
+                                  readonly=True)
 
-    def _set_product_purchase_uom(self):
+    @api.one
+    @api.depends('price', 'min_qty_uom_id')
+    def _get_purchase_price(self):
+        if self.product_uom.id != self.min_qty_uom_id.id and self.min_qty_uom_id.id is not False:
+            if self.product_uom.category_id.id == self.min_qty_uom_id.category_id.id:
+                qty = self.min_qty_uom_id._compute_quantity(
+                    1,
+                    self.product_uom
+                )
+                self.purchase_price = qty * self.price
+        else:
+            self.purchase_price = self.price
+
+    def _set_purchase_price(self):
         return
 
     @api.multi
