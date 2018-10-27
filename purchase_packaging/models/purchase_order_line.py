@@ -63,6 +63,8 @@ class PurchaseOrderLine(models.Model):
                         line.product_uom
                     )
                     line.purchase_price_unit = qty * line.price_unit
+                else:
+                    line.purchase_price_unit = line.price_unit
             else:
                 line.purchase_price_unit = line.price_unit
 
@@ -182,6 +184,9 @@ class PurchaseOrderLine(models.Model):
                     supplier.min_qty, self.product_uom
                 )
         self.packaging_id = supplier.packaging_id
+        if self.product_purchase_uom_id.id is False:
+            self.product_purchase_uom_id = self.product_uom.id
+
         if domain:
             if res.get('domain'):
                 res['domain'].update(domain)
@@ -206,6 +211,7 @@ class PurchaseOrderLine(models.Model):
         if vals.get('packaging_id'):
             vals['product_uom'] = self.env['product.packaging'].browse(
                 vals['packaging_id']).uom_id.id
+
         return vals
 
     @api.model
@@ -214,24 +220,21 @@ class PurchaseOrderLine(models.Model):
         if 'product_qty' not in vals and 'product_purchase_qty' in vals:
             # compute product_qty to avoid inverse computation and reset to 1
             uom_obj = self.env['product.uom']
-            product_purchase_uom = uom_obj.browse(
-                vals['product_purchase_uom_id'])
-            # to_uom = uom_obj.search(
-            #     [('category_id', '=', product_purchase_uom.category_id.id),
-            #      ('uom_type', '=', 'reference')], limit=1)
-            # if to_uom.category_id.id != product_purchase_uom.category_id.id:
-            #     line.product_qty = line.product_purchase_uom_id._compute_quantity(
-            #         line.product_purchase_qty,
-            #         uom_by_category.get(line.product_purchase_uom_id.category_id)
-            #     )
-            # else:
-            #     line.product_qty = line.product_purchase_uom_id._compute_quantity(
-            #         line.product_purchase_qty,
-            #         line.product_uom
-            #     )
-            # vals['product_qty'] = to_uom._compute_quantity(
-            #     vals['product_purchase_qty'],
-            #     to_uom)
+            product_uom = uom_obj.browse(vals['product_uom'])
+            product_purchase_uom = uom_obj.browse(vals['product_purchase_uom_id'])
+
+            # Convert the qty to the UOM specified on the line.
+            if product_purchase_uom.category_id.id != product_uom.category_id.id:
+                vals['product_qty'] = product_purchase_uom._compute_quantity(
+                    vals['product_purchase_qty'],
+                    uom_by_category.get(product_purchase_uom.category_id)
+                )
+            else:
+                vals['product_qty'] = product_purchase_uom._compute_quantity(
+                    vals['product_purchase_qty'],
+                    product_uom
+                )
+
         return super(PurchaseOrderLine, self).create(self.update_vals(vals))
 
     @api.multi
