@@ -10,7 +10,8 @@ class ProductSupplierinfo(models.Model):
 
     packaging_id = fields.Many2one(
         'product.packaging',
-        'Logisitical Units'
+        'Logisitical Units',
+        help='Tip: If the bag you just created is not showing here, save the product and try again.'
     )
     product_uom = fields.Many2one(
         compute='_compute_product_uom',

@@ -19,6 +19,7 @@
             <field name="model">product.supplierinfo</field>
             <field name="inherit_id" ref="product.product_supplierinfo_form_view"/>
             <field name="arch" type="xml">
+
                 <field name="min_qty" position="after">
                     <span> x <field name="min_qty_uom_id" groups="product.group_uom"/></span>
                 </field>
@@ -41,4 +42,15 @@
                 </xpath>
             </field>
         </record>
+
+        <record id="view_product_supplier_inherit" model="ir.ui.view">
+            <field name="name">product.template.supplier.form.inherit</field>
+            <field name="model">product.template</field>
+            <field name="inherit_id" ref="purchase.view_product_supplier_inherit"/>
+            <field name="arch" type="xml">
+                <!-- Remove built-in packaging field from purchase module. -->
+                <group name="packaging" position="replace" />
+            </field>
+        </record>
+
 </odoo>

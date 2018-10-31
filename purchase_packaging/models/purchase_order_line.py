@@ -98,6 +98,7 @@ class PurchaseOrderLine(models.Model):
                 )
 
     @api.multi
+    @api.depends('product_qty')
     def _inverse_product_qty(self):
         """ If product_quantity is set compute the purchase_qty
         """
@@ -112,7 +113,7 @@ class PurchaseOrderLine(models.Model):
         for line in self:
             if line.product_id:
                 supplier = line._get_product_seller()
-                if supplier:
+                if supplier.id and supplier.min_qty_uom_id.id:
                     product_purchase_uom = supplier.min_qty_uom_id
                     from_uom = uom_by_category.get(product_purchase_uom.category_id)
                     if line.product_uom.category_id.id != product_purchase_uom.category_id.id:
@@ -126,6 +127,7 @@ class PurchaseOrderLine(models.Model):
                     line.product_purchase_uom_id = product_purchase_uom.id
                 else:
                     line.product_purchase_uom_id = line.product_uom.id
+                    line.product_purchase_qty = line.product_qty
             else:
                 line.product_purchase_qty = line.product_qty
 
@@ -207,10 +209,14 @@ class PurchaseOrderLine(models.Model):
         """
         When packaging_id is set, uom_id is readonly,
         so we need to reset the uom value in the vals dict
+        TODO: Fix this.
         """
         if vals.get('packaging_id'):
-            vals['product_uom'] = self.env['product.packaging'].browse(
-                vals['packaging_id']).uom_id.id
+            if vals.get('product_id') and vals.get('product_uom') and isinstance(vals.get('product_uom'), basestring) is False:
+                vals['product_uom'] = self.env['product.product'].browse(vals['product_id']).uom_po_id.id
+
+                vals['product_purchase_uom_id'] = self.env['product.packaging'].browse(
+                    vals['packaging_id']).uom_id.id
 
         return vals
 
