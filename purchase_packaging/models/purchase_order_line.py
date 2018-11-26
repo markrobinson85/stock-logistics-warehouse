@@ -241,6 +241,11 @@ class PurchaseOrderLine(models.Model):
                     product_uom
                 )
 
+        elif 'product_qty' in vals and 'product_purchase_qty' not in vals and 'product_purchase_uom_id' not in vals:
+            # Handle cases where product's vendor's uom may not be set, or not passed through.
+            vals['product_purchase_qty'] = vals['product_qty']
+            vals['product_purchase_uom_id'] = vals['product_uom']
+
         return super(PurchaseOrderLine, self).create(self.update_vals(vals))
 
     @api.multi
