@@ -33,11 +33,30 @@ class StockQuant(models.Model):
                 cont = 1
                 cost = quant2merge.cost
                 for quant in quants:
-                    if (quant2merge._get_latest_move() ==
-                            quant._get_latest_move()):
+                    quant2merge_move = quant2merge._get_latest_move()
+                    quant_move = quant._get_latest_move()
+                    # if (quant2merge._get_latest_move() == quant._get_latest_move()) \
+                    #         or (quant2merge._get_latest_move().picking_id.id == quant._get_latest_move()).picking_id.id:
+                    # Match one of multiple conditions:
+                    #  # -- > Same last move.
+                    #  # -- > Same purchase order line.
+                    #  # -- > Same production order.
+                    #  # -- > Same last picking.
+                    if (quant2merge_move.id == quant_move.id) \
+                            or (quant2merge_move.purchase_line_id
+                                and quant_move.purchase_line_id
+                                and quant2merge_move.purchase_line_id == quant_move.purchase_line_id) \
+                            or (quant2merge_move.production_id
+                                and quant_move.production_id
+                                and quant2merge_move.production_id == quant_move.production_id) \
+                            or (quant2merge_move.picking_id
+                                and quant_move.picking_id
+                                and quant2merge_move.picking_id == quant_move.picking_id):
                         quant2merge.sudo().qty += quant.qty
                         cost += quant.cost
                         cont += 1
                         pending_quants -= quant
                         quant.with_context(force_unlink=True).sudo().unlink()
+
                 quant2merge.sudo().cost = cost / cont
+
