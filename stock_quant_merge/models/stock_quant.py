@@ -33,16 +33,31 @@ class StockQuant(models.Model):
                 cont = 1
                 cost = quant2merge.cost
                 for quant in quants:
+                    # Get the latest move.
                     quant2merge_move = quant2merge._get_latest_move()
                     quant_move = quant._get_latest_move()
-                    # if (quant2merge._get_latest_move() == quant._get_latest_move()) \
-                    #         or (quant2merge._get_latest_move().picking_id.id == quant._get_latest_move()).picking_id.id:
+
+                    quant_history = quant.history_ids.ids
+                    quant_history.remove(quant_move.id)
+                    quant2merge_history = quant2merge.history_ids.ids
+                    quant2merge_history.remove(quant2merge_move.id)
+
+                    # TODO: Test this.
+                    # If the latest move matches, great, otherwise we want to make sure the history of the quant is
+                    # only 1 move deep; or check that the histories (minus latest move) is an exact match.
+                    if (quant2merge_move.id != quant_move.id) \
+                            and (len(quant.history_ids) > 1 and len(quant2merge.history_ids) > 1)\
+                            and (quant_history != quant2merge_history):
+                        continue
+
                     # Match one of multiple conditions:
                     #  # -- > Same last move.
                     #  # -- > Same purchase order line.
                     #  # -- > Same production order.
+                    #  # -- > Same workcenter operation.
                     #  # -- > Same last picking.
-                    if (quant2merge_move.id == quant_move.id) \
+                    # Assuming the quants only has 1 history each, we can safely assume this is where they originated.
+                    if (quant2merge_move.id == quant_move.id)\
                             or (quant2merge_move.purchase_line_id
                                 and quant_move.purchase_line_id
                                 and quant2merge_move.purchase_line_id == quant_move.purchase_line_id) \
@@ -51,11 +66,30 @@ class StockQuant(models.Model):
                                 and quant2merge_move.production_id == quant_move.production_id) \
                             or (quant2merge_move.picking_id
                                 and quant_move.picking_id
-                                and quant2merge_move.picking_id == quant_move.picking_id):
+                                and quant2merge_move.picking_id == quant_move.picking_id) \
+                            or (quant2merge_move.raw_material_production_id
+                                and quant_move.raw_material_production_id
+                                and quant2merge_move.raw_material_production_id == quant_move.raw_material_production_id):
                         quant2merge.sudo().qty += quant.qty
                         cost += quant.cost
                         cont += 1
                         pending_quants -= quant
+
+                        # Link moves to the merged stock quants.
+                        # TODO: Is it necessary to retain the other move?
+                        # Don't retain move line if quant originated at production id.
+                        # and not quant2merge_move.production_id
+                        if quant2merge_move.id != quant_move.id and quant_history == quant2merge_history:
+                            quant2merge.history_ids = [(4, quant_move.id)]
+
+                        # Merge consumed quants and produced quants
+                        if quant2merge.consumed_quant_ids and quant.consumed_quant_ids:
+                            quant2merge.consumed_quant_ids = [(4, x.id) for x in quant.consumed_quant_ids]
+                        if quant2merge.produced_quant_ids and quant.produced_quant_ids:
+                            quant2merge.produced_quant_ids = [(4, x.id) for x in quant.produced_quant_ids]
+
+                        # elif quant2merge_move.id != quant_move.id and len(quant2merge.history_ids) > 1:
+                        #     quant2merge.history_ids += [(4, x.id) for x in quant.history_ids]
                         quant.with_context(force_unlink=True).sudo().unlink()
 
                 quant2merge.sudo().cost = cost / cont
