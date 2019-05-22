@@ -43,11 +43,11 @@ class StockQuant(models.Model):
                     quant2merge_history.remove(quant2merge_move.id)
 
                     # TODO: Test this.
-                    # If the latest move matches, great, otherwise we want to make sure the history of the quant is
+                    # If the latest move matches, merge, otherwise we want to make sure the history of the quant is
                     # only 1 move deep; or check that the histories (minus latest move) is an exact match.
-                    if (quant2merge_move.id != quant_move.id) \
-                            and (len(quant.history_ids) > 1 and len(quant2merge.history_ids) > 1)\
-                            and (quant_history != quant2merge_history):
+                    if (quant2merge_move.id == quant_move.id) \
+                        or ((len(quant.history_ids) > 1 and len(quant2merge.history_ids) > 1)\
+                        and (set(quant_history) != set(quant2merge_history))):
                         continue
 
                     # Match one of multiple conditions:
@@ -79,13 +79,14 @@ class StockQuant(models.Model):
                         # TODO: Is it necessary to retain the other move?
                         # Don't retain move line if quant originated at production id.
                         # and not quant2merge_move.production_id
-                        if quant2merge_move.id != quant_move.id and quant_history == quant2merge_history:
+                        # if quant2merge_move.id != quant_move.id and set(quant_history) == set(quant2merge_history):
+                        if quant2merge_move.id != quant_move.id:
                             quant2merge.history_ids = [(4, quant_move.id)]
 
                         # Merge consumed quants and produced quants
-                        if quant2merge.consumed_quant_ids and quant.consumed_quant_ids:
+                        if quant.consumed_quant_ids:
                             quant2merge.consumed_quant_ids = [(4, x.id) for x in quant.consumed_quant_ids]
-                        if quant2merge.produced_quant_ids and quant.produced_quant_ids:
+                        if quant.produced_quant_ids:
                             quant2merge.produced_quant_ids = [(4, x.id) for x in quant.produced_quant_ids]
 
                         # elif quant2merge_move.id != quant_move.id and len(quant2merge.history_ids) > 1:
