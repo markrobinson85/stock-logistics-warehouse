@@ -21,10 +21,38 @@ class StockQuant(models.Model):
                 ('package_id', '=', self.package_id.id),
                 ('location_id', '=', self.location_id.id),
                 ('reservation_id', '=', False),
-                ('propagated_from_id', '=', self.propagated_from_id.id)]
+                ('propagated_from_id', '=', self.propagated_from_id.id),
+                ]
 
     @api.multi
     def merge_stock_quants(self):
+        # Get a copy of the recorset
+        pending_quants = self.browse(self.ids)
+        for quant2merge in self.filtered(lambda x: not x.reservation_id):
+            if quant2merge in pending_quants:
+                quants = self.search(quant2merge._mergeable_domain())
+                cont = 1
+                cost = quant2merge.cost
+                for quant in quants:
+                    if (quant2merge._get_latest_move() ==
+                            quant._get_latest_move()):
+                        quant2merge.sudo().qty += quant.qty
+                        cost += quant.cost
+                        cont += 1
+                        pending_quants -= quant
+                        quant.with_context(force_unlink=True).sudo().unlink()
+                quant2merge.sudo().cost = cost / cont
+
+    # @api.model
+    # def quants_move(self, quants, move, location_to, location_from=False, lot_id=False, owner_id=False,
+    #                 src_package_id=False, dest_package_id=False, entire_pack=False):
+    #     res = super(StockQuant, self).quants_move(quants=quants, move=move, location_to=location_to, location_from=location_from, lot_id=lot_id, owner_id=owner_id,
+    #                 src_package_id=src_package_id, dest_package_id=dest_package_id, entire_pack=entire_pack)
+    #     quants.merge_stock_quants()
+    #     return res
+
+    @api.multi
+    def aggressive_merge_stock_quants(self):
         # Get a copy of the recorset
         pending_quants = self.browse(self.ids)
         for quant2merge in self.filtered(lambda x: not x.reservation_id):
@@ -45,10 +73,13 @@ class StockQuant(models.Model):
                     # TODO: Test this.
                     # If the latest move matches, merge, otherwise we want to make sure the history of the quant is
                     # only 1 move deep; or check that the histories (minus latest move) is an exact match.
-                    if (quant2merge_move.id == quant_move.id) \
-                        or ((len(quant.history_ids) > 1 and len(quant2merge.history_ids) > 1)\
-                        and (set(quant_history) != set(quant2merge_history))):
-                        continue
+                    # Make sure the latest move is
+                    # if quant2merge_move.id == quant_move.id:
+                    #     continue
+                    # if (quant2merge_move.id == quant_move.id) \
+                    #     or ((len(quant.history_ids) > 1 and len(quant2merge.history_ids) > 1)\
+                    #     and (set(quant_history) != set(quant2merge_history))):
+                    #     continue
 
                     # Match one of multiple conditions:
                     #  # -- > Same last move.
@@ -80,8 +111,8 @@ class StockQuant(models.Model):
                         # Don't retain move line if quant originated at production id.
                         # and not quant2merge_move.production_id
                         # if quant2merge_move.id != quant_move.id and set(quant_history) == set(quant2merge_history):
-                        if quant2merge_move.id != quant_move.id:
-                            quant2merge.history_ids = [(4, quant_move.id)]
+                        # if quant2merge_move.id != quant_move.id:
+                        quant2merge.history_ids = [(4, quant_move.id)]
 
                         # Merge consumed quants and produced quants
                         if quant.consumed_quant_ids:

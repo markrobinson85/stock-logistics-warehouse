@@ -17,6 +17,7 @@ class StockMove(models.Model):
     @api.multi
     def action_done(self):
         res = super(StockMove, self).action_done()
-        self.mapped('quant_ids').merge_stock_quants()
+        for move in self:
+            move.quant_ids.aggressive_merge_stock_quants()
         return res
 
