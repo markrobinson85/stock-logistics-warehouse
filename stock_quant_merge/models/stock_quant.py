@@ -70,17 +70,6 @@ class StockQuant(models.Model):
                     quant2merge_history = quant2merge.history_ids.ids
                     quant2merge_history.remove(quant2merge_move.id)
 
-                    # TODO: Test this.
-                    # If the latest move matches, merge, otherwise we want to make sure the history of the quant is
-                    # only 1 move deep; or check that the histories (minus latest move) is an exact match.
-                    # Make sure the latest move is
-                    # if quant2merge_move.id == quant_move.id:
-                    #     continue
-                    # if (quant2merge_move.id == quant_move.id) \
-                    #     or ((len(quant.history_ids) > 1 and len(quant2merge.history_ids) > 1)\
-                    #     and (set(quant_history) != set(quant2merge_history))):
-                    #     continue
-
                     # Match one of multiple conditions:
                     #  # -- > Same last move.
                     #  # -- > Same purchase order line.
