@@ -43,14 +43,6 @@ class StockQuant(models.Model):
                         quant.with_context(force_unlink=True).sudo().unlink()
                 quant2merge.sudo().cost = cost / cont
 
-    # @api.model
-    # def quants_move(self, quants, move, location_to, location_from=False, lot_id=False, owner_id=False,
-    #                 src_package_id=False, dest_package_id=False, entire_pack=False):
-    #     res = super(StockQuant, self).quants_move(quants=quants, move=move, location_to=location_to, location_from=location_from, lot_id=lot_id, owner_id=owner_id,
-    #                 src_package_id=src_package_id, dest_package_id=dest_package_id, entire_pack=entire_pack)
-    #     quants.merge_stock_quants()
-    #     return res
-
     @api.multi
     def aggressive_merge_stock_quants(self):
         # Get a copy of the recorset
@@ -95,13 +87,8 @@ class StockQuant(models.Model):
                         cont += 1
                         pending_quants -= quant
 
-                        # Link moves to the merged stock quants.
-                        # TODO: Is it necessary to retain the other move?
-                        # Don't retain move line if quant originated at production id.
-                        # and not quant2merge_move.production_id
-                        # if quant2merge_move.id != quant_move.id and set(quant_history) == set(quant2merge_history):
-                        # if quant2merge_move.id != quant_move.id:
-                        quant2merge.history_ids = [(4, quant_move.id)]
+                        # Combine stock move history, remove duplicates
+                        quant2merge.history_ids = [(4, x.id) for x in quant.history_ids if x.picking_id.id not in quant2merge.history_ids.mapped('picking_id').ids or not x.picking_id]
 
                         # Merge consumed quants and produced quants
                         if quant.consumed_quant_ids:
