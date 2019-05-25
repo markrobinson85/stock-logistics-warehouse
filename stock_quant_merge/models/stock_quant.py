@@ -88,6 +88,8 @@ class StockQuant(models.Model):
                         pending_quants -= quant
 
                         # Combine stock move history, remove duplicates
+                        # quant2merge.history_ids = [(4, x.id) for x in quant.history_ids]
+                        # Merge the stock move history.
                         quant2merge.history_ids = [(4, x.id) for x in quant.history_ids if x.picking_id.id not in quant2merge.history_ids.mapped('picking_id').ids or not x.picking_id]
 
                         # Merge consumed quants and produced quants
