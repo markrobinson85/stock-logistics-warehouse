@@ -49,10 +49,14 @@ class StockQuant(models.Model):
         pending_quants = self.browse(self.ids)
         for quant2merge in self.filtered(lambda x: not x.reservation_id):
             if quant2merge in pending_quants:
+                if quant2merge.qty < 0:
+                    continue
                 quants = self.search(quant2merge._mergeable_domain())
                 cont = 1
                 cost = quant2merge.cost
                 for quant in quants:
+                    if quant.qty < 0:
+                        continue
                     # Get the latest move.
                     quant2merge_move = quant2merge._get_latest_move()
                     quant_move = quant._get_latest_move()
