@@ -105,6 +105,6 @@ class StockQuant(models.Model):
                         # elif quant2merge_move.id != quant_move.id and len(quant2merge.history_ids) > 1:
                         #     quant2merge.history_ids += [(4, x.id) for x in quant.history_ids]
                         quant.with_context(force_unlink=True).sudo().unlink()
-
-                quant2merge.sudo().cost = cost / cont
+                if cost > 0 and cont > 1:
+                    quant2merge.sudo().cost = cost / cont
 
