@@ -66,44 +66,52 @@ class StockQuant(models.Model):
                     quant2merge_history = quant2merge.history_ids.ids
                     quant2merge_history.remove(quant2merge_move.id)
 
+                    quant_produced_quant_ids = quant.produced_quant_ids.exists().ids
+                    qaunt2merge_produced_quant_ids = quant2merge.produced_quant_ids.exists().ids
+                    quant_consumed_quant_ids = quant.consumed_quant_ids.exists().ids
+                    qaunt2merge_consumed_quant_ids = quant2merge.consumed_quant_ids.exists().ids
+
+                    num_quant_produced_quant_ids = len(quant_produced_quant_ids)
+                    num_qaunt2merge_produced_quant_ids = len(qaunt2merge_produced_quant_ids)
+                    num_quant_consumed_quant_ids = len(quant_consumed_quant_ids)
+                    num_qaunt2merge_consumed_quant_ids = len(qaunt2merge_consumed_quant_ids)
+
                     # Match one of multiple conditions:
                     #  # -- > Same last move.
                     #  # -- > Same purchase order line.
                     #  # -- > Same production order.
                     #  # -- > Same workcenter operation.
                     #  # -- > Same last picking.
+                    #  # -- > Same produced quants and production id on last move
+                    #  # -- > Same consumed quants and production id on last move
                     # Assuming the quants only has 1 history each, we can safely assume this is where they originated.
-                    if (quant2merge_move.id == quant_move.id)\
-                            or (quant2merge_move.purchase_line_id
-                                and quant_move.purchase_line_id
-                                and quant2merge_move.purchase_line_id == quant_move.purchase_line_id) \
-                            or (quant2merge_move.production_id
-                                and quant_move.production_id
-                                and quant2merge_move.production_id == quant_move.production_id) \
-                            or (quant2merge_move.picking_id
-                                and quant_move.picking_id
-                                and quant2merge_move.picking_id == quant_move.picking_id) \
-                            or (quant2merge_move.raw_material_production_id
-                                and quant_move.raw_material_production_id
-                                and quant2merge_move.raw_material_production_id == quant_move.raw_material_production_id):
+                    if (quant2merge_move.purchase_line_id
+                            and quant_move.purchase_line_id
+                            and quant2merge_move.purchase_line_id == quant_move.purchase_line_id) \
+                        or (quant2merge_move.picking_id
+                            and quant_move.picking_id
+                            and quant2merge_move.picking_id == quant_move.picking_id) \
+                        or (quant2merge_move.raw_material_production_id and
+                            quant2merge_move.raw_material_production_id == quant_move.raw_material_production_id and
+                            qaunt2merge_produced_quant_ids and
+                            num_qaunt2merge_produced_quant_ids and
+                            num_quant_produced_quant_ids == num_qaunt2merge_produced_quant_ids and
+                            quant_produced_quant_ids == qaunt2merge_produced_quant_ids) \
+                        or (quant2merge_move.production_id and
+                            quant2merge_move.production_id == quant_move.production_id and
+                            qaunt2merge_consumed_quant_ids and
+                            num_qaunt2merge_consumed_quant_ids and
+                            num_quant_consumed_quant_ids == num_qaunt2merge_consumed_quant_ids and
+                            quant_consumed_quant_ids == qaunt2merge_consumed_quant_ids):
+
                         quant2merge.sudo().qty += quant.qty
                         cost += quant.cost
                         cont += 1
                         pending_quants -= quant
 
-                        # Combine stock move history, remove duplicates
-                        # quant2merge.history_ids = [(4, x.id) for x in quant.history_ids]
-                        # Merge the stock move history.
+                        # Merge the stock move history removing duplicates.
                         quant2merge.history_ids = [(4, x.id) for x in quant.history_ids if x.picking_id.id not in quant2merge.history_ids.mapped('picking_id').ids or not x.picking_id]
 
-                        # Merge consumed quants and produced quants
-                        if quant.consumed_quant_ids:
-                            quant2merge.consumed_quant_ids = [(4, x.id) for x in quant.consumed_quant_ids]
-                        if quant.produced_quant_ids:
-                            quant2merge.produced_quant_ids = [(4, x.id) for x in quant.produced_quant_ids]
-
-                        # elif quant2merge_move.id != quant_move.id and len(quant2merge.history_ids) > 1:
-                        #     quant2merge.history_ids += [(4, x.id) for x in quant.history_ids]
                         quant.with_context(force_unlink=True).sudo().unlink()
                 if cost > 0 and cont > 1:
                     quant2merge.sudo().cost = cost / cont
