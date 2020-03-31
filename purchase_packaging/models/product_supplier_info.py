@@ -25,7 +25,7 @@ class ProductSupplierinfo(models.Model):
         required=True,
     )
 
-    purchase_price = fields.Float(string='Package Price', required=False, store=True,
+    purchase_price = fields.Float(string='Package Price', required=False, store=False,
                                   compute="_get_purchase_price", digits=dp.get_precision('Product Price'),
                                   readonly=True)
 
