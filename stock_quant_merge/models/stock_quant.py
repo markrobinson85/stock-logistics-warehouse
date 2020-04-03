@@ -48,6 +48,9 @@ class StockQuant(models.Model):
         # Get a copy of the recorset
         pending_quants = self.browse(self.ids)
         for quant2merge in self.filtered(lambda x: not x.reservation_id):
+            if quant2merge.location_id.scrap_location:
+                # Don't merge at scrap locations.
+                continue
             if quant2merge in pending_quants:
                 if quant2merge.qty < 0:
                     continue
