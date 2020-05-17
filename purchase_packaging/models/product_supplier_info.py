@@ -22,10 +22,9 @@ class ProductSupplierinfo(models.Model):
     min_qty_uom_id = fields.Many2one(
         'product.uom',
         'Minimal Unit of Measure Quantity',
-        required=True,
     )
 
-    purchase_price = fields.Float(string='Package Price', required=True, store=True,
+    purchase_price = fields.Float(string='Package Price', required=False, store=False,
                                   compute="_get_purchase_price", digits=dp.get_precision('Product Price'),
                                   readonly=True)
 
