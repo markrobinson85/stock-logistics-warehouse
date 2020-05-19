@@ -49,6 +49,8 @@ class StockQuant(models.Model):
         # Get a copy of the recorset
         pending_quants = self.browse(self.ids)
         for quant2merge in self.filtered(lambda x: not x.reservation_id):
+            if not quant2merge.exists():
+                continue
             if quant2merge.location_id.scrap_location:
                 # Don't merge at scrap locations.
                 continue
@@ -106,7 +108,8 @@ class StockQuant(models.Model):
                         if quant.produced_quant_ids:
                             quant2merge.produced_quant_ids = [(4, x.id) for x in quant.produced_quant_ids]
 
-                        quant.with_context(force_unlink=True).sudo().unlink()
+                        if quant.exists():
+                            quant.with_context(force_unlink=True).sudo().unlink()
                 if cost > 0 and cont > 1:
                     quant2merge.sudo().cost = cost / cont
 
