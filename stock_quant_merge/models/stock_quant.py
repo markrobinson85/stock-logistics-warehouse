@@ -12,6 +12,11 @@ class StockQuant(models.Model):
     _inherit = 'stock.quant'
 
     @api.multi
+    def _get_latest_move(self):
+        latest_move = self.history_ids.sorted(lambda x: x.date)[0]
+        return latest_move
+
+    @api.multi
     def _mergeable_domain(self):
         """Return the quants which may be merged with the current record"""
         self.ensure_one()
@@ -20,10 +25,25 @@ class StockQuant(models.Model):
                 ('lot_id', '=', self.lot_id.id),
                 ('package_id', '=', self.package_id.id),
                 ('location_id', '=', self.location_id.id),
-                # ('location_id.scrap_location', '=', False),
+                # ('location_id.usage', '=', 'internal'),
+                # ('location_id.usage', '=', 'internal'),
+                ('location_id.scrap_location', '=', False),
                 ('reservation_id', '=', False),
                 ('propagated_from_id', '=', self.propagated_from_id.id),
+                # '|', '|',
+                # ('location_id.usage', '=', 'internal'),
+                # ('history_ids', 'in', self.ids)
                 ]
+        # return [('id', '!=', self.id),
+        #         ('product_id', '=', self.product_id.id),
+        #         ('lot_id', '=', self.lot_id.id),
+        #         ('package_id', '=', self.package_id.id),
+        #         ('location_id', '=', self.location_id.id),
+        #         # ('location_id.usage', '=', 'internal'),
+        #         ('location_id.scrap_location', '=', False),
+        #         ('reservation_id', '=', False),
+        #         ('propagated_from_id', '=', self.propagated_from_id.id),
+        #         ]
 
     @api.multi
     def merge_stock_quants(self):
@@ -51,65 +71,48 @@ class StockQuant(models.Model):
         for quant2merge in self.filtered(lambda x: not x.reservation_id):
             if not quant2merge.exists():
                 continue
-            if quant2merge.location_id.scrap_location:
-                # Don't merge at scrap locations.
-                continue
+            # if quant2merge.location_id.scrap_location:
+            #     # Don't merge at scrap locations.
+            #     continue
             if quant2merge in pending_quants:
                 if quant2merge.qty < 0:
                     continue
+
                 quants = self.search(quant2merge._mergeable_domain())
                 cont = 1
                 cost = quant2merge.cost
+                quant2merge_move = quant2merge._get_latest_move()
+
                 for quant in quants:
                     if quant.qty < 0:
                         continue
                     # Get the latest move.
-                    quant2merge_move = quant2merge._get_latest_move()
                     quant_move = quant._get_latest_move()
 
-                    quant_history = quant.history_ids.ids
-                    quant_history.remove(quant_move.id)
-                    quant2merge_history = quant2merge.history_ids.ids
-                    quant2merge_history.remove(quant2merge_move.id)
+                    if quant.location_id.usage != 'internal':
+                        if quant_move != quant2merge_move:
+                            continue
+                        if set(quant.mapped('history_ids.raw_material_production_id').ids) != set(quant2merge.mapped('history_ids.raw_material_production_id').ids):
+                            continue
+                        if set(quant.mapped('history_ids.production_id').ids) != set(quant2merge.mapped('history_ids.production_id').ids):
+                            continue
 
-                    # Match one of multiple conditions:
-                    #  # -- > Same last move.
-                    #  # -- > Same purchase order line.
-                    #  # -- > Same production order.
-                    #  # -- > Same workcenter operation.
-                    #  # -- > Same last picking.
-                    #  # -- > Same produced quants and production id on last move
-                    #  # -- > Same consumed quants and production id on last move
-                    # Assuming the quants only has 1 history each, we can safely assume this is where they originated.
-                    if (quant2merge_move.purchase_line_id
-                            and quant_move.purchase_line_id
-                            and quant2merge_move.purchase_line_id == quant_move.purchase_line_id) \
-                        or (quant2merge_move.picking_id
-                            and quant_move.picking_id
-                            and quant2merge_move.picking_id == quant_move.picking_id) \
-                        or (quant2merge_move.raw_material_production_id.id and
-                            quant2merge_move.raw_material_production_id.id == quant_move.raw_material_production_id.id and
-                            set(quant2merge.produced_quant_ids.mapped('lot_id.id')) == set(quant.produced_quant_ids.mapped('lot_id.id'))) \
-                        or (quant2merge_move.production_id.id and
-                            quant2merge_move.production_id.id == quant_move.production_id.id and
-                            set(quant2merge.consumed_quant_ids.mapped('lot_id.id')) == set(quant.consumed_quant_ids.mapped('lot_id.id'))):
+                    quant2merge.sudo().qty += quant.qty
+                    cost += quant.cost
+                    cont += 1
+                    pending_quants -= quant
 
-                        quant2merge.sudo().qty += quant.qty
-                        cost += quant.cost
-                        cont += 1
-                        pending_quants -= quant
+                    # Merge the stock move history removing duplicates.
+                    quant2merge.sudo().history_ids = [(4, x.id) for x in quant.history_ids if x.picking_id.id not in quant2merge.history_ids.mapped('picking_id').ids or not x.picking_id]
 
-                        # Merge the stock move history removing duplicates.
-                        quant2merge.history_ids = [(4, x.id) for x in quant.history_ids if x.picking_id.id not in quant2merge.history_ids.mapped('picking_id').ids or not x.picking_id]
+                    # Merge consumed quants and produced quants
+                    if quant.sudo().consumed_quant_ids:
+                        quant2merge.sudo().consumed_quant_ids = [(4, x.id) for x in quant.consumed_quant_ids if x.exists()]
+                    if quant.sudo().produced_quant_ids:
+                        quant2merge.sudo().produced_quant_ids = [(4, x.id) for x in quant.produced_quant_ids if x.exists()]
 
-                        # Merge consumed quants and produced quants
-                        if quant.consumed_quant_ids:
-                            quant2merge.consumed_quant_ids = [(4, x.id) for x in quant.consumed_quant_ids]
-                        if quant.produced_quant_ids:
-                            quant2merge.produced_quant_ids = [(4, x.id) for x in quant.produced_quant_ids]
-
-                        if quant.exists():
-                            quant.with_context(force_unlink=True).sudo().unlink()
+                    if quant.exists():
+                        quant.with_context(force_unlink=True).sudo().unlink()
                 if cost > 0 and cont > 1:
                     quant2merge.sudo().cost = cost / cont
 
