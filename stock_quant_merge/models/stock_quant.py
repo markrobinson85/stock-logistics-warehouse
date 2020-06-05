@@ -127,7 +127,7 @@ class StockQuant(models.Model):
     @api.multi
     def aggressive_merge_stock_quants(self):
         if not self:
-            self.search([])
+            self = self.search([])
         for quant in self:
             quant.with_delay().queue_aggressive_merge_stock_quants()
 
