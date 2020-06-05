@@ -9,6 +9,7 @@
     "version": "10.0.1.0.0",
     "depends": [
         "stock",
+        "queue_job"
         # "mrp",
     ],
     "author": "OdooMRP team,"

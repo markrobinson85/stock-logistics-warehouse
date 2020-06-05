@@ -6,6 +6,7 @@
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl.html).
 
 from odoo import api, models
+from odoo.addons.queue_job.job import job
 
 
 class StockQuant(models.Model):
@@ -65,7 +66,8 @@ class StockQuant(models.Model):
                 quant2merge.sudo().cost = cost / cont
 
     @api.multi
-    def aggressive_merge_stock_quants(self):
+    @job
+    def queue_aggressive_merge_stock_quants(self):
         # Get a copy of the recorset
         pending_quants = self.browse(self.ids)
         for quant2merge in self.filtered(lambda x: not x.reservation_id):
@@ -92,9 +94,11 @@ class StockQuant(models.Model):
                     if quant.location_id.usage != 'internal':
                         if quant_move != quant2merge_move:
                             continue
-                        if set(quant.mapped('history_ids.raw_material_production_id').ids) != set(quant2merge.mapped('history_ids.raw_material_production_id').ids):
+                        if set(quant.mapped('history_ids.raw_material_production_id').ids) != set(
+                                quant2merge.mapped('history_ids.raw_material_production_id').ids):
                             continue
-                        if set(quant.mapped('history_ids.production_id').ids) != set(quant2merge.mapped('history_ids.production_id').ids):
+                        if set(quant.mapped('history_ids.production_id').ids) != set(
+                                quant2merge.mapped('history_ids.production_id').ids):
                             continue
 
                     quant2merge.sudo().qty += quant.qty
@@ -103,16 +107,24 @@ class StockQuant(models.Model):
                     pending_quants -= quant
 
                     # Merge the stock move history removing duplicates.
-                    quant2merge.sudo().history_ids = [(4, x.id) for x in quant.history_ids if x.picking_id.id not in quant2merge.history_ids.mapped('picking_id').ids or not x.picking_id]
+                    quant2merge.sudo().history_ids = [(4, x.id) for x in quant.history_ids if
+                                                      x.picking_id.id not in quant2merge.history_ids.mapped(
+                                                          'picking_id').ids or not x.picking_id]
 
                     # Merge consumed quants and produced quants
                     if quant.sudo().consumed_quant_ids:
-                        quant2merge.sudo().consumed_quant_ids = [(4, x.id) for x in quant.consumed_quant_ids if x.exists()]
+                        quant2merge.sudo().consumed_quant_ids = [(4, x.id) for x in quant.consumed_quant_ids if
+                                                                 x.exists()]
                     if quant.sudo().produced_quant_ids:
-                        quant2merge.sudo().produced_quant_ids = [(4, x.id) for x in quant.produced_quant_ids if x.exists()]
+                        quant2merge.sudo().produced_quant_ids = [(4, x.id) for x in quant.produced_quant_ids if
+                                                                 x.exists()]
 
                     if quant.exists():
                         quant.with_context(force_unlink=True).sudo().unlink()
                 if cost > 0 and cont > 1:
                     quant2merge.sudo().cost = cost / cont
+
+    @api.multi
+    def aggressive_merge_stock_quants(self):
+        self.with_delay().queue_aggressive_merge_stock_quants()
 
