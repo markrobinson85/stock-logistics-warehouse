@@ -129,3 +129,13 @@ class StockQuant(models.Model):
         for quant in self:
             quant.exists().with_delay().queue_aggressive_merge_stock_quants()
 
+    @api.multi
+    def queue_merge_all(self):
+        # Get all the locations
+        locations = self.env['stock.location'].search([])
+        for loc in locations:
+            # Search for quants at each location and queue merging.
+            quants = self.search([('location_id', '=', loc.id)])
+            if quants.exists():
+                quants.with_delay().queue_aggressive_merge_stock_quants()
+
