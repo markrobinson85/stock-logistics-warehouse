@@ -60,6 +60,9 @@ class StockQuant(models.Model):
         for quant2merge in self.filtered(lambda x: not x.reservation_id):
             if not quant2merge.exists():
                 continue
+            if quant2merge.location_id.scrap_location:
+                # Don't merge at scrap locations.
+                continue
             # if quant2merge.location_id.scrap_location:
             #     # Don't merge at scrap locations.
             #     continue
