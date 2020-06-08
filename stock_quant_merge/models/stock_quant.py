@@ -124,5 +124,5 @@ class StockQuant(models.Model):
     @api.multi
     def aggressive_merge_stock_quants(self):
         for quant in self:
-            quant.exists().with_context(test_queue_job_no_delay=True).with_delay().queue_aggressive_merge_stock_quants()
+            quant.exists().with_delay().queue_aggressive_merge_stock_quants()
 
