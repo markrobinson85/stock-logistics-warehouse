@@ -5,9 +5,12 @@
 # © 2017 Eficent Business and IT Consulting Services S.L.
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl.html).
 
+
 from odoo import api, models
 from odoo.addons.queue_job.job import job
-
+import logging
+# from openerp.tools.config import config
+_logger = logging.getLogger(__name__)
 
 class StockQuant(models.Model):
     _inherit = 'stock.quant'
@@ -26,25 +29,9 @@ class StockQuant(models.Model):
                 ('lot_id', '=', self.lot_id.id),
                 ('package_id', '=', self.package_id.id),
                 ('location_id', '=', self.location_id.id),
-                # ('location_id.usage', '=', 'internal'),
-                # ('location_id.usage', '=', 'internal'),
-                ('location_id.scrap_location', '=', False),
                 ('reservation_id', '=', False),
                 ('propagated_from_id', '=', self.propagated_from_id.id),
-                # '|', '|',
-                # ('location_id.usage', '=', 'internal'),
-                # ('history_ids', 'in', self.ids)
                 ]
-        # return [('id', '!=', self.id),
-        #         ('product_id', '=', self.product_id.id),
-        #         ('lot_id', '=', self.lot_id.id),
-        #         ('package_id', '=', self.package_id.id),
-        #         ('location_id', '=', self.location_id.id),
-        #         # ('location_id.usage', '=', 'internal'),
-        #         ('location_id.scrap_location', '=', False),
-        #         ('reservation_id', '=', False),
-        #         ('propagated_from_id', '=', self.propagated_from_id.id),
-        #         ]
 
     @api.multi
     def merge_stock_quants(self):
@@ -77,6 +64,8 @@ class StockQuant(models.Model):
             #     # Don't merge at scrap locations.
             #     continue
             if quant2merge in pending_quants:
+                if quant2merge.id == 137551:
+                    continue
                 if quant2merge.qty < 0:
                     continue
 
@@ -86,20 +75,28 @@ class StockQuant(models.Model):
                 quant2merge_move = quant2merge._get_latest_move()
 
                 for quant in quants:
+                    if not quant.exists():
+                        continue
                     if quant.qty < 0:
                         continue
+                    _logger.info("Checking mergability of stock quant %s with %s.", quant.id, quant2merge.id)
                     # Get the latest move.
                     quant_move = quant._get_latest_move()
 
                     if quant.location_id.usage != 'internal':
-                        if quant_move != quant2merge_move:
+                        if quant.location_id.usage == 'production':
+                            if quant2merge.mapped('history_ids.raw_material_production_id').ids and \
+                                    set(quant.mapped('history_ids.raw_material_production_id').ids) != set(
+                                    quant2merge.mapped('history_ids.raw_material_production_id').ids):
+                                continue
+                            if quant2merge.mapped('history_ids.production_id').ids and \
+                                    set(quant.mapped('history_ids.production_id').ids) != set(
+                                    quant2merge.mapped('history_ids.production_id').ids):
+                                continue
+                        elif quant_move != quant2merge_move:
                             continue
-                        if set(quant.mapped('history_ids.raw_material_production_id').ids) != set(
-                                quant2merge.mapped('history_ids.raw_material_production_id').ids):
-                            continue
-                        if set(quant.mapped('history_ids.production_id').ids) != set(
-                                quant2merge.mapped('history_ids.production_id').ids):
-                            continue
+
+                    _logger.info("Merging stock quant %s with %s.", quant.id, quant2merge.id)
 
                     quant2merge.sudo().qty += quant.qty
                     cost += quant.cost
@@ -126,8 +123,6 @@ class StockQuant(models.Model):
 
     @api.multi
     def aggressive_merge_stock_quants(self):
-        if not self:
-            self = self.search([])
         for quant in self:
-            quant.with_delay().queue_aggressive_merge_stock_quants()
+            quant.exists().with_context(test_queue_job_no_delay=True).with_delay().queue_aggressive_merge_stock_quants()
 
