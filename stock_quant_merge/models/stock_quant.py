@@ -87,17 +87,18 @@ class StockQuant(models.Model):
                     quant_move = quant._get_latest_move()
 
                     if quant.location_id.usage != 'internal':
-                        if quant.location_id.usage == 'production':
-                            if quant2merge.mapped('history_ids.raw_material_production_id').ids and \
-                                    set(quant.mapped('history_ids.raw_material_production_id').ids) != set(
-                                    quant2merge.mapped('history_ids.raw_material_production_id').ids):
-                                continue
-                            if quant2merge.mapped('history_ids.production_id').ids and \
-                                    set(quant.mapped('history_ids.production_id').ids) != set(
-                                    quant2merge.mapped('history_ids.production_id').ids):
-                                continue
-                        elif quant_move != quant2merge_move:
-                            continue
+                        continue
+                        # if quant.location_id.usage == 'production':
+                        #     if quant2merge.mapped('history_ids.raw_material_production_id').ids and \
+                        #             set(quant.mapped('history_ids.raw_material_production_id').ids) != set(
+                        #             quant2merge.mapped('history_ids.raw_material_production_id').ids):
+                        #         continue
+                        #     if quant2merge.mapped('history_ids.production_id').ids and \
+                        #             set(quant.mapped('history_ids.production_id').ids) != set(
+                        #             quant2merge.mapped('history_ids.production_id').ids):
+                        #         continue
+                        # elif quant_move != quant2merge_move:
+                        #     continue
 
                     _logger.info("Merging stock quant %s with %s.", quant.id, quant2merge.id)
 
